@@ -58,14 +58,12 @@ def build_sequence(day_key: str, work: int, rest: int, rounds: int, warmup: int,
     for r in range(rounds):
         for i, ex in enumerate(exs):
             seq.append((ex, work))
-            # Add rest after each work interval except the very last exercise of the last round
             is_last_block = (r == rounds - 1) and (i == len(exs) - 1)
             if not is_last_block and rest > 0:
                 seq.append(("Rest", rest))
     if include_finisher and finisher > 0:
         seq.append((f"Finisher – {plan['finisher']}", finisher))
     return seq
-
 
 # -------------------------
 # Session state init
@@ -82,7 +80,8 @@ if "running" not in st.session_state:
     st.session_state.running = False
 if "last_ts" not in st.session_state:
     st.session_state.last_ts = None
-
+if "last_phase" not in st.session_state:
+    st.session_state.last_phase = ""
 
 # -------------------------
 # Sidebar settings
@@ -120,81 +119,59 @@ with st.sidebar:
         st.session_state.remaining = st.session_state.sequence[0][1] if st.session_state.sequence else 0
         st.session_state.running = False
         st.session_state.last_ts = None
+        st.session_state.last_phase = ""
 
     if st.button("Build / Reset Plan", use_container_width=True):
         reset_plan()
 
-# Auto-build plan on first load
 if not st.session_state.sequence:
-    with st.spinner("Preparing your plan..."):
-        with st.sidebar:
-            st.caption("Tip: You can change settings and press 'Build / Reset Plan'.")
-        # Use current sidebar values
-        st.session_state.sequence = build_sequence(
-            st.session_state.day,
-            work=work_s,
-            rest=rest_s,
-            rounds=rounds,
-            warmup=warmup_s,
-            finisher=finisher_s,
-            include_warmup=include_warmup,
-            include_finisher=include_finisher,
-        )
-        st.session_state.index = 0
-        st.session_state.remaining = st.session_state.sequence[0][1]
-        st.session_state.running = False
-        st.session_state.last_ts = None
+    reset_plan()
 
 # -------------------------
-# Header
+# Dark theme CSS + Sound
 # -------------------------
 st.markdown("""
 <style>
-.big-timer {font-size: 10rem; font-weight: 800; text-align:center; line-height: 1;}
+body {background-color: #0e1117; color: #fafafa;}
+.big-timer {font-size: 10rem; font-weight: 800; text-align:center; line-height: 1; color:#00ffcc;}
 .phase {font-size: 2rem; text-align:center; margin-top: -10px;}
-.note {text-align:center; color: #666;}
-.card {padding: 1rem; border-radius: 1rem; border: 1px solid #eee; background: #fafafa;}
+.card {padding: 1rem; border-radius: 1rem; border: 1px solid #333; background: #1e222a; color:#fff;}
 </style>
+<audio id="beep-sound" src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg"></audio>
+<script>
+function playBeep(){
+  var audio = document.getElementById('beep-sound');
+  if(audio){audio.play();}
+}
+</script>
 """, unsafe_allow_html=True)
 
 st.title("🪖 Military Workout Timer (15 min)")
-st.caption("Large timer with pause/resume, shows current & next exercise. Use the sidebar to pick a day and adjust durations.")
 
 # -------------------------
-# Main layout
+# Layout
 # -------------------------
 left, mid, right = st.columns([1, 2, 1])
-
-# Current and next items
 current_label = st.session_state.sequence[st.session_state.index][0] if st.session_state.sequence else ""
 next_label = st.session_state.sequence[st.session_state.index + 1][0] if st.session_state.sequence and st.session_state.index + 1 < len(st.session_state.sequence) else "—"
 
 with left:
     st.subheader("Current")
     st.markdown(f"<div class='card'><b>{current_label}</b></div>", unsafe_allow_html=True)
-
 with right:
     st.subheader("Next")
     st.markdown(f"<div class='card'>{next_label}</div>", unsafe_allow_html=True)
-
 with mid:
-    # Timer display
     st.markdown(f"<div class='big-timer'>{fmt_time(st.session_state.remaining)}</div>", unsafe_allow_html=True)
     st.markdown(f"<div class='phase'>{current_label}</div>", unsafe_allow_html=True)
-
-    # Controls
     c1, c2, c3, c4 = st.columns(4)
-
     if c1.button("▶️ Start / Resume", use_container_width=True):
         st.session_state.running = True
         st.session_state.last_ts = time.monotonic()
-
     if c2.button("⏸️ Pause", use_container_width=True):
         st.session_state.running = False
         st.session_state.last_ts = None
-
     if c3.button("⏭️ Skip", use_container_width=True):
-        # Skip to next interval
         if st.session_state.index + 1 < len(st.session_state.sequence):
             st.session_state.index += 1
             st.session_state.remaining = st.session_state.sequence[st.session_state.index][1]
@@ -202,29 +179,28 @@ with mid:
         else:
             st.session_state.running = False
             st.session_state.remaining = 0
-
     if c4.button("🔄 Reset", use_container_width=True):
-        # Rebuild sequence with current settings
         reset_plan()
 
 # -------------------------
-# Timer engine (frame-by-frame)
+# Timer engine
 # -------------------------
 if st.session_state.running and st.session_state.last_ts is not None:
     now = time.monotonic()
     elapsed = now - st.session_state.last_ts
-    if elapsed >= 0.2:  # update about 5 times/second for smoothness
+    if elapsed >= 0.2:
         st.session_state.remaining -= elapsed
         st.session_state.last_ts = now
         if st.session_state.remaining <= 0:
-            # Advance to next block
             if st.session_state.index + 1 < len(st.session_state.sequence):
                 st.session_state.index += 1
                 st.session_state.remaining = st.session_state.sequence[st.session_state.index][1]
+                # Trigger beep when new phase starts
+                st.markdown("<script>playBeep();</script>", unsafe_allow_html=True)
             else:
-                # Done!
                 st.session_state.running = False
                 st.session_state.remaining = 0
+                st.markdown("<script>playBeep();</script>", unsafe_allow_html=True)
         st.experimental_rerun()
 
 # -------------------------
@@ -247,13 +223,10 @@ with col2:
     if include_finisher and finisher_s:
         st.write(f"Finisher: {finisher_s}s – {WORKOUTS[st.session_state.day]['finisher']}")
 
-# Sequence preview table
-st.write("")
-st.write("**Full Sequence Preview:**")
 preview = [
     {"#": i+1, "Phase": label, "Duration": str(timedelta(seconds=secs))[:-3]}
     for i, (label, secs) in enumerate(st.session_state.sequence)
 ]
 st.dataframe(preview, use_container_width=True, hide_index=True)
 
-st.info("Tip: Keep your phone awake while running the timer. You can change day or durations from the sidebar.")
+st.info("Tip: Keep your phone awake while running the timer. Sound beeps will play at each transition. Dark theme is auto-applied.")
