@@ -2,158 +2,178 @@ import streamlit as st
 import pandas as pd
 import time
 
-# Set page configuration for a better layout
+# --- Page Configuration ---
 st.set_page_config(layout="wide")
 
 st.title("Military Workout Timer and Plan")
 
-# Define workout plans as a dictionary
+# --- Workout Data Structure ---
+# Organized by day for the new dropdown feature
 workout_plans = {
-    "Push up": [
-        {"exercise": "Push up", "duration": 120, "reps": "max"},
-    ],
-    "Sit up": [
-        {"exercise": "Sit up", "duration": 120, "reps": "max"},
-    ],
-    "Running": [
-        {"exercise": "Running", "duration": 720, "reps": "2 km"},
-    ],
-    "Full Body Workout": [
-        {"exercise": "Jumping Jacks", "duration": 60, "reps": "N/A"},
+    "Select a Day": [],
+    "Monday - Full Body Strength": [
+        {"exercise": "Warm-up (Jumping Jacks)", "duration": 120, "reps": "N/A"},
         {"exercise": "Rest", "duration": 30, "reps": "N/A"},
-        {"exercise": "Push ups", "duration": 60, "reps": "max"},
+        {"exercise": "Push ups", "duration": 60, "reps": "3 sets, max reps"},
         {"exercise": "Rest", "duration": 30, "reps": "N/A"},
-        {"exercise": "Sit ups", "duration": 60, "reps": "max"},
+        {"exercise": "Bodyweight Squats", "duration": 60, "reps": "3 sets, max reps"},
         {"exercise": "Rest", "duration": 30, "reps": "N/A"},
-        {"exercise": "Squats", "duration": 60, "reps": "max"},
+        {"exercise": "Plank", "duration": 60, "reps": "3 sets"},
+        {"exercise": "Rest", "duration": 30, "reps": "N/A"},
+        {"exercise": "Sit ups", "duration": 60, "reps": "3 sets, max reps"},
+        {"exercise": "Cool-down (Stretch)", "duration": 120, "reps": "N/A"},
+    ],
+    "Wednesday - Cardio & Core": [
+        {"exercise": "Warm-up (High Knees)", "duration": 120, "reps": "N/A"},
+        {"exercise": "Rest", "duration": 30, "reps": "N/A"},
+        {"exercise": "Running", "duration": 900, "reps": "2.5 km"},
+        {"exercise": "Rest", "duration": 60, "reps": "N/A"},
+        {"exercise": "Crunches", "duration": 60, "reps": "3 sets, max reps"},
+        {"exercise": "Rest", "duration": 30, "reps": "N/A"},
+        {"exercise": "Leg Raises", "duration": 60, "reps": "3 sets, max reps"},
+        {"exercise": "Cool-down (Stretch)", "duration": 120, "reps": "N/A"},
+    ],
+    "Friday - Endurance Challenge": [
+        {"exercise": "Push up", "duration": 120, "reps": "Max reps in 2 mins"},
+        {"exercise": "Rest", "duration": 60, "reps": "N/A"},
+        {"exercise": "Sit up", "duration": 120, "reps": "Max reps in 2 mins"},
+        {"exercise": "Rest", "duration": 60, "reps": "N/A"},
+        {"exercise": "Running", "duration": 720, "reps": "2 km timed run"},
     ]
 }
 
 # --- Session State Initialization ---
-# Initialize session state variables if they don't exist to prevent errors on first run
-if "running" not in st.session_state:
-    st.session_state.running = False
+# This ensures the app remembers the state between reruns (e.g., if the timer is running)
+if "is_started" not in st.session_state:
+    st.session_state.is_started = False
+if "is_paused" not in st.session_state:
+    st.session_state.is_paused = False
 if "workout_plan" not in st.session_state:
     st.session_state.workout_plan = []
 if "current_exercise_index" not in st.session_state:
     st.session_state.current_exercise_index = 0
 if "timer" not in st.session_state:
     st.session_state.timer = 0
+if "selected_day" not in st.session_state:
+    st.session_state.selected_day = "Select a Day"
 
-# --- Functions to control workout state ---
+# --- Control Functions ---
 def start_workout(plan):
-    """Starts the workout timer and sets up the session state."""
-    st.session_state.running = True
-    st.session_state.workout_plan = plan
-    st.session_state.current_exercise_index = 0
-    # Ensure the plan has at least one exercise before accessing index 0
+    """Initializes the workout state."""
     if plan:
+        st.session_state.is_started = True
+        st.session_state.is_paused = False
+        st.session_state.workout_plan = plan
+        st.session_state.current_exercise_index = 0
         st.session_state.timer = plan[0]["duration"]
 
-def stop_workout():
-    """Stops the workout timer."""
-    st.session_state.running = False
+def pause_workout():
+    """Pauses the timer."""
+    st.session_state.is_paused = True
+
+def resume_workout():
+    """Resumes the timer."""
+    st.session_state.is_paused = False
 
 def reset_workout():
     """Resets the entire workout state."""
-    st.session_state.running = False
+    st.session_state.is_started = False
+    st.session_state.is_paused = False
     st.session_state.workout_plan = []
     st.session_state.current_exercise_index = 0
     st.session_state.timer = 0
-
+    # We keep selected_day so the user doesn't have to choose it again
 
 # --- UI Layout ---
-# Dropdown to select a workout plan
-plan_selection = st.selectbox("Choose your workout plan:", list(workout_plans.keys()))
 
-selected_plan = workout_plans[plan_selection]
+# Top section for workout selection
+st.selectbox(
+    "Choose your workout plan for the day:",
+    list(workout_plans.keys()),
+    key="selected_day",
+    on_change=reset_workout # Reset if user picks a new plan
+)
 
-# Display the details of the selected plan in a dataframe
-st.write("### Workout Details")
-df = pd.DataFrame(selected_plan)
-st.dataframe(df, use_container_width=True)
+selected_plan = workout_plans[st.session_state.selected_day]
 
-# Create columns for control buttons
-col1, col2, col3 = st.columns(3)
+# Display workout details only if a plan is selected
+if st.session_state.selected_day != "Select a Day":
+    st.write("### Workout Details")
+    df = pd.DataFrame(selected_plan)
+    st.dataframe(df, use_container_width=True)
 
-with col1:
-    # Show "Start" button only if the workout is not running
-    if not st.session_state.running:
-        if st.button("Start", use_container_width=True, type="primary"):
+
+# --- Main Timer and Control Display ---
+if not st.session_state.is_started:
+    # Show start button if workout hasn't started and a plan is chosen
+    if st.session_state.selected_day != "Select a Day":
+        if st.button("Start Workout", use_container_width=True, type="primary"):
             start_workout(selected_plan)
-            # Rerun the script to start the timer display
+            st.rerun()
+else:
+    # --- Timer Countdown and Display Logic ---
+    current_exercise = st.session_state.workout_plan[st.session_state.current_exercise_index]
+    remaining_time = st.session_state.timer
+
+    # Format time as MM:SS for display
+    minutes, seconds = divmod(remaining_time, 60)
+
+    # LARGE TIMER in the middle of the page
+    st.markdown(f"""
+    <div style="font-size: 160px; text-align: center; font-weight: bold; color: #4CAF50;">
+        {minutes:02d}:{seconds:02d}
+    </div>
+    """, unsafe_allow_html=True)
+
+    # --- Current and Next Workout Display ---
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("### Current Workout")
+        st.info(f"**Exercise:** {current_exercise['exercise']}\n\n**Reps:** {current_exercise['reps']}")
+
+    with col2:
+        st.markdown("### Next Workout")
+        next_index = st.session_state.current_exercise_index + 1
+        if next_index < len(st.session_state.workout_plan):
+            next_exercise = st.session_state.workout_plan[next_index]
+            st.warning(f"**Exercise:** {next_exercise['exercise']}\n\n**Reps:** {next_exercise['reps']}")
+        else:
+            st.success("Last exercise! You're almost there!")
+
+
+    # --- Control Buttons (Pause/Resume/Reset) ---
+    btn_col1, btn_col2 = st.columns(2)
+    with btn_col1:
+        if not st.session_state.is_paused:
+            if st.button("Pause", use_container_width=True):
+                pause_workout()
+                st.rerun()
+        else:
+            if st.button("Resume", use_container_width=True, type="primary"):
+                resume_workout()
+                st.rerun()
+    with btn_col2:
+        if st.button("Reset", use_container_width=True):
+            reset_workout()
             st.rerun()
 
-with col2:
-    # Show "Stop" button only if the workout is running
-    if st.session_state.running:
-        if st.button("Stop", use_container_width=True):
-            stop_workout()
-            # Rerun the script to hide the timer and update button states
-            st.rerun()
-
-with col3:
-    # "Reset" button is always available
-    if st.button("Reset", use_container_width=True):
-        reset_workout()
-        # Rerun to reflect the reset state in the UI
-        st.rerun()
-
-
-# --- Timer and Exercise Display Logic ---
-# This block runs only when the 'running' state is True
-if st.session_state.running:
-    # Defensive check to prevent IndexError if the workout plan is somehow empty or finished
-    if st.session_state.current_exercise_index >= len(st.session_state.workout_plan):
-        stop_workout()
-        st.warning("Workout finished or plan is empty.")
-        st.rerun()
-    else:
-        current_exercise = st.session_state.workout_plan[st.session_state.current_exercise_index]
-        exercise_name = current_exercise["exercise"]
-        reps = current_exercise["reps"]
-
-        st.markdown(f"## Current Exercise: **{exercise_name}**")
-        st.markdown(f"### Reps: **{reps}**")
-
-        # Timer display using a progress bar and a metric
-        progress_bar = st.progress(0.0)
-        timer_placeholder = st.empty()
-
-        total_duration = current_exercise["duration"]
-        remaining_time = st.session_state.timer
-        
-        # Calculate progress, avoiding division by zero
-        progress = (total_duration - remaining_time) / total_duration if total_duration > 0 else 1.0
-        
-        # Ensure progress is between 0.0 and 1.0
-        progress = max(0.0, min(1.0, progress))
-
-        progress_bar.progress(progress)
-        
-        # Format time as MM:SS
-        minutes, seconds = divmod(remaining_time, 60)
-        timer_placeholder.metric("Time Remaining", f"{minutes:02d}:{seconds:02d}")
-
-        # --- Core timer logic ---
-        # Pause execution for 1 second. This makes the timer update every second.
-        time.sleep(1)
+    # --- Core Timer Logic ---
+    if not st.session_state.is_paused:
+        time.sleep(1) # Pause execution for 1 second
 
         if st.session_state.timer > 0:
             st.session_state.timer -= 1
         else:
-            # Timer for the current exercise is up, move to the next one
+            # Timer is up, move to the next exercise
             st.session_state.current_exercise_index += 1
-            # Check if the workout is completely finished
             if st.session_state.current_exercise_index >= len(st.session_state.workout_plan):
-                stop_workout()
-                st.balloons() # Fun celebration!
+                st.balloons()
+                st.success("Workout Complete! Great job!")
+                reset_workout() # Reset state but keep message
             else:
-                # Set the timer for the next exercise in the plan
-                next_exercise = st.session_state.workout_plan[st.session_state.current_exercise_index]
-                st.session_state.timer = next_exercise["duration"]
-        
-        # Rerun the script to update the UI with the new timer value
-        # We check 'running' again in case the workout was stopped in this iteration
-        if st.session_state.running:
-            st.rerun()
+                # Set the timer for the next exercise
+                next_ex = st.session_state.workout_plan[st.session_state.current_exercise_index]
+                st.session_state.timer = next_ex["duration"]
+
+        st.rerun()
+
