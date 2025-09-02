@@ -1,5 +1,5 @@
 import streamlit as st
-# import pandas as pd # Temporarily removed for debugging
+import pandas as pd
 import time
 
 # --- Page Configuration ---
@@ -98,11 +98,8 @@ selected_plan = workout_plans[st.session_state.selected_day]
 # Display workout details only if a plan is selected
 if st.session_state.selected_day != "Select a Day":
     st.write("### Workout Details")
-    # --- TEMPORARY DISPLAY - REPLACED PANDAS DATAFRAME ---
-    with st.container(border=True):
-        for item in selected_plan:
-            st.text(f"- {item['exercise']} ({item['duration']}s) | Reps: {item['reps']}")
-    # --------------------------------------------------------
+    df = pd.DataFrame(selected_plan)
+    st.dataframe(df, use_container_width=True)
 
 
 # --- Main Timer and Control Display ---
