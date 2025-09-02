@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd
+# import pandas as pd # Temporarily removed for debugging
 import time
 
 # --- Page Configuration ---
@@ -43,7 +43,6 @@ workout_plans = {
 }
 
 # --- Session State Initialization ---
-# This ensures the app remembers the state between reruns (e.g., if the timer is running)
 if "is_started" not in st.session_state:
     st.session_state.is_started = False
 if "is_paused" not in st.session_state:
@@ -99,8 +98,11 @@ selected_plan = workout_plans[st.session_state.selected_day]
 # Display workout details only if a plan is selected
 if st.session_state.selected_day != "Select a Day":
     st.write("### Workout Details")
-    df = pd.DataFrame(selected_plan)
-    st.dataframe(df, use_container_width=True)
+    # --- TEMPORARY DISPLAY - REPLACED PANDAS DATAFRAME ---
+    with st.container(border=True):
+        for item in selected_plan:
+            st.text(f"- {item['exercise']} ({item['duration']}s) | Reps: {item['reps']}")
+    # --------------------------------------------------------
 
 
 # --- Main Timer and Control Display ---
